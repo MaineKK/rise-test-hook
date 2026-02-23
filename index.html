@@ -134,74 +134,71 @@
     
     <script>__loadEntry()</script>
 
-    <!-- Hook para detectar el último Continuar/Finalizar de Rise y desbloquear Next en Storyline -->
+ <!-- Hook para detectar el último Continuar/Finalizar de Rise y desbloquear Next en Storyline -->
 <script>
 (function () {
+ // Enviamos al padre (Storyline) el desbloqueo
+ function unlockNext() {
+   try { window.parent.postMessage({ type: 'UNLOCK_NEXT' }, '*'); } catch (e) {}
+ }
 
-  function unlockNext() {
-    console.log("UNLOCK_NEXT enviado");
-    try {
-      window.parent.postMessage({ type: 'UNLOCK_NEXT' }, '*');
-    } catch (e) {
-      console.error("Error enviando mensaje:", e);
-    }
-  }
 
-  function getAllContinueButtons() {
-    return Array.from(
-      document.querySelectorAll('button.continue-btn[data-continue-btn]')
-    );
-  }
+ // ¿Este botón es el último "Continuar" visible en la pantalla?
+ function isLastVisibleContinue(btn) {
+   const visibles = Array.from(document.querySelectorAll('button.continue-btn[data-continue-btn]'))
+     .filter(b => b.offsetParent !== null);
+   return visibles.length > 0 && visibles[visibles.length - 1] === btn;
+ }
 
-  function isButtonReady(btn) {
-    // Verifica que el botón sea visible y habilitado
-    const style = window.getComputedStyle(btn);
-    return (
-      !btn.disabled &&
-      style.display !== 'none' &&
-      style.visibility !== 'hidden' &&
-      style.opacity !== '0'
-    );
-  }
 
-  function wireButtons() {
-    const buttons = getAllContinueButtons();
+ // Handler de click
+ function onContinueClick(e) {
+   const btn = e.currentTarget;
+   const label = (btn.textContent || '').trim().toLowerCase();
 
-    buttons.forEach(btn => {
-      if (btn.__wired) return; // evita duplicar listeners
-      btn.__wired = true;
 
-      btn.addEventListener('click', function () {
-        // Espera que Rise actualice el DOM
-        setTimeout(function () {
-          const allButtons = getAllContinueButtons();
-          const visibleButtons = allButtons.filter(isButtonReady);
-          const lastButton = visibleButtons[visibleButtons.length - 1];
+   const looksFinal =
+     /finaliz/.test(label)           // “Finalizar”, “Finaliza”, etc.
+     || isLastVisibleContinue(btn);  // o es el último Continuar visible
 
-          if (btn === lastButton) {
-            unlockNext();
-          }
 
-        }, 500); // un poco más seguro que 300ms
-      });
-    });
-  }
+   if (looksFinal) {
+     // Pequeño delay para que Rise haga su scroll/cambio de estado
+     setTimeout(unlockNext, 200);
+   }
+ }
 
-  // Inicial
-  wireButtons();
 
-  // Observador para detectar botones nuevos o cambios en el DOM
-  const observer = new MutationObserver(function () {
-    wireButtons();
-  });
+ // Cablear listeners a todos los botones de continuar que existan/entren
+ function wireButtons(root = document) {
+   const candidates = root.querySelectorAll('button.continue-btn[data-continue-btn]');
+   candidates.forEach(btn => {
+     if (btn.__wired) return;
+     btn.__wired = true;
+     btn.addEventListener('click', onContinueClick);
+   });
+ }
 
-  observer.observe(document.documentElement, {
-    childList: true,
-    subtree: true
-  });
 
+ // Inicial
+ wireButtons();
+
+
+ // Observar el DOM porque Rise es SPA y mete contenido dinámico
+ const mo = new MutationObserver(muts => {
+   for (const m of muts) {
+     if (!m.addedNodes) continue;
+     m.addedNodes.forEach(n => {
+       if (n.nodeType !== 1) return;
+       // Cablea si aparecen botones nuevos o contenedores con ellos
+       if (n.matches?.('button.continue-btn[data-continue-btn]')) wireButtons(n);
+       else wireButtons(n);
+     });
+   }
+ });
+ mo.observe(document.documentElement, { childList: true, subtree: true });
 })();
 </script>
-
+    
   </body>
 </html>
