@@ -139,29 +139,34 @@
 (function () {
 
   function unlockNext() {
+    console.log("UNLOCK_NEXT enviado");
     try {
       window.parent.postMessage({ type: 'UNLOCK_NEXT' }, '*');
     } catch (e) {}
   }
 
-  function isLastVisibleContinue(btn) {
-    const visibles = Array.from(
+  function getAllVisibleContinues() {
+    return Array.from(
       document.querySelectorAll('button.continue-btn[data-continue-btn]')
-    ).filter(b => b.offsetParent !== null);
+    ).filter(btn => btn.offsetParent !== null);
+  }
 
-    return visibles.length > 0 && visibles[visibles.length - 1] === btn;
+  function getBottomMostButton(buttons) {
+    return buttons.sort((a, b) => {
+      return a.getBoundingClientRect().top - b.getBoundingClientRect().top;
+    })[buttons.length - 1];
   }
 
   function onContinueClick(e) {
     const btn = e.currentTarget;
-    const label = (btn.textContent || '').trim().toLowerCase();
 
-    const looksFinal =
-      /finaliz/.test(label) ||
-      isLastVisibleContinue(btn);
+    const visibles = getAllVisibleContinues();
+    if (!visibles.length) return;
 
-    if (looksFinal) {
-      setTimeout(unlockNext, 200);
+    const lastReal = getBottomMostButton(visibles);
+
+    if (btn === lastReal) {
+      setTimeout(unlockNext, 300);
     }
   }
 
@@ -179,15 +184,8 @@
 
   wireButtons();
 
-  const mo = new MutationObserver(muts => {
-    for (const m of muts) {
-      if (!m.addedNodes) continue;
-
-      m.addedNodes.forEach(n => {
-        if (n.nodeType !== 1) return;
-        wireButtons(n);
-      });
-    }
+  const mo = new MutationObserver(() => {
+    wireButtons();
   });
 
   mo.observe(document.body, {
@@ -197,3 +195,7 @@
 
 })();
 </script>
+
+
+  </body>
+</html>
