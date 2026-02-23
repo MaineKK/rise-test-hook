@@ -135,7 +135,7 @@
     <script>__loadEntry()</script>
 
     <!-- Hook para detectar el último Continuar/Finalizar de Rise y desbloquear Next en Storyline -->
- <script>
+<script>
 (function () {
 
   function unlockNext() {
@@ -143,7 +143,7 @@
     try {
       window.parent.postMessage({ type: 'UNLOCK_NEXT' }, '*');
     } catch (e) {
-      console.log("Error enviando mensaje:", e);
+      console.error("Error enviando mensaje:", e);
     }
   }
 
@@ -153,33 +153,44 @@
     );
   }
 
+  function isButtonReady(btn) {
+    // Verifica que el botón sea visible y habilitado
+    const style = window.getComputedStyle(btn);
+    return (
+      !btn.disabled &&
+      style.display !== 'none' &&
+      style.visibility !== 'hidden' &&
+      style.opacity !== '0'
+    );
+  }
+
   function wireButtons() {
     const buttons = getAllContinueButtons();
 
     buttons.forEach(btn => {
-      if (btn.__wired) return;
+      if (btn.__wired) return; // evita duplicar listeners
       btn.__wired = true;
 
       btn.addEventListener('click', function () {
-
+        // Espera que Rise actualice el DOM
         setTimeout(function () {
-
           const allButtons = getAllContinueButtons();
-          const lastButton = allButtons[allButtons.length - 1];
+          const visibleButtons = allButtons.filter(isButtonReady);
+          const lastButton = visibleButtons[visibleButtons.length - 1];
 
           if (btn === lastButton) {
             unlockNext();
           }
 
-        }, 300);
-
+        }, 500); // un poco más seguro que 300ms
       });
-
     });
   }
 
+  // Inicial
   wireButtons();
 
+  // Observador para detectar botones nuevos o cambios en el DOM
   const observer = new MutationObserver(function () {
     wireButtons();
   });
