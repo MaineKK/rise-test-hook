@@ -135,72 +135,51 @@
     <script>__loadEntry()</script>
 
     <!-- Hook para detectar el último Continuar/Finalizar de Rise y desbloquear Next en Storyline -->
-<script>
+  <script>
 (function () {
-
-  function unlockNext() {
-    console.log("UNLOCK_NEXT enviado (último botón real)");
-    try {
-      window.parent.postMessage({ type: 'UNLOCK_NEXT' }, '*');
-    } catch (e) {}
-  }
-
-  // Devuelve TODOS los botones Continue existentes (visibles o no)
-  function getAllContinueButtons() {
-    return Array.from(
-      document.querySelectorAll('button.continue-btn[data-continue-btn]')
-    );
-  }
-
-  // Devuelve el último botón real del curso (el que está más abajo en el DOM)
-  function getTrueLastButton() {
-    const buttons = getAllContinueButtons();
-    if (!buttons.length) return null;
-    return buttons[buttons.length - 1];
-  }
-
-  function onContinueClick(e) {
-    const clickedButton = e.currentTarget;
-
-    // Esperamos a que Rise termine cualquier render dinámico
-    setTimeout(() => {
-
-      const trueLast = getTrueLastButton();
-      if (!trueLast) return;
-
-      // SOLO desbloquea si el botón pulsado ES el último real del curso
-      if (clickedButton === trueLast) {
-        unlockNext();
-      }
-
-    }, 300);
-  }
-
-  function wireButtons() {
-    const buttons = getAllContinueButtons();
-
-    buttons.forEach(btn => {
-      if (btn.__wired) return;
-      btn.__wired = true;
-      btn.addEventListener('click', onContinueClick);
-    });
-  }
-
-  // Inicial
-  wireButtons();
-
-  // Observa cambios porque Rise carga bloques dinámicamente
-  const observer = new MutationObserver(() => {
-    wireButtons();
-  });
-
-  observer.observe(document.documentElement, {
-    childList: true,
-    subtree: true
-  });
-
+function unlockNext() {
+ try { window.parent.postMessage({ type: 'UNLOCK_NEXT' }, '*'); } catch (e) {}
+ }
+function isLastVisibleContinue(btn) {
+ const visibles = Array.from(document.querySelectorAll('button.continue-btn[data-continuebtn]'))
+ .filter(b => b.offsetParent !== null);
+ return visibles.length > 0 && visibles[visibles.length - 1] === btn;
+ }
+ // Handler de click
+ function onContinueClick(e) {
+ const btn = e.currentTarget;
+ const label = (btn.textContent || '').trim().toLowerCase();
+ const looksFinal =
+ /finaliz/.test(label) // “Finalizar”, “Finaliza”, etc.
+ || isLastVisibleContinue(btn); // o es el último Continuar visible
+ if (looksFinal) {
+ setTimeout(unlockNext, 200);
+ }
+ }
+function wireButtons(root = document) {
+ const candidates = root.querySelectorAll('button.continue-btn[data-continue-btn]');
+ candidates.forEach(btn => {
+ if (btn.__wired) return;
+ btn.__wired = true;
+ btn.addEventListener('click', onContinueClick);
+ });
+ }
+ // Inicial
+ wireButtons();
+const mo = new MutationObserver(muts => {
+ for (const m of muts) {
+ if (!m.addedNodes) continue;
+ m.addedNodes.forEach(n => {
+ if (n.nodeType !== 1) return;
+ if (n.matches?.('button.continue-btn[data-continue-btn]')) wireButtons(n);
+ else wireButtons(n);
+ });
+ }
+ });
+ mo.observe(document.documentElement, { childList: true, subtree: true });
 })();
 </script>
+
 
 
   </body>
