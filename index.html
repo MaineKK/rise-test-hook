@@ -135,52 +135,62 @@
     <script>__loadEntry()</script>
 
     <!-- Hook para detectar el último Continuar/Finalizar de Rise y desbloquear Next en Storyline -->
-  <script>
+ <script>
 (function () {
-function unlockNext() {
- try { window.parent.postMessage({ type: 'UNLOCK_NEXT' }, '*'); } catch (e) {}
- }
-function isLastVisibleContinue(btn) {
- const visibles = Array.from(document.querySelectorAll('button.continue-btn[data-continuebtn]'))
- .filter(b => b.offsetParent !== null);
- return visibles.length > 0 && visibles[visibles.length - 1] === btn;
- }
- // Handler de click
- function onContinueClick(e) {
- const btn = e.currentTarget;
- const label = (btn.textContent || '').trim().toLowerCase();
- const looksFinal =
- /finaliz/.test(label) // “Finalizar”, “Finaliza”, etc.
- || isLastVisibleContinue(btn); // o es el último Continuar visible
- if (looksFinal) {
- setTimeout(unlockNext, 200);
- }
- }
-function wireButtons(root = document) {
- const candidates = root.querySelectorAll('button.continue-btn[data-continue-btn]');
- candidates.forEach(btn => {
- if (btn.__wired) return;
- btn.__wired = true;
- btn.addEventListener('click', onContinueClick);
- });
- }
- // Inicial
- wireButtons();
-const mo = new MutationObserver(muts => {
- for (const m of muts) {
- if (!m.addedNodes) continue;
- m.addedNodes.forEach(n => {
- if (n.nodeType !== 1) return;
- if (n.matches?.('button.continue-btn[data-continue-btn]')) wireButtons(n);
- else wireButtons(n);
- });
- }
- });
- mo.observe(document.documentElement, { childList: true, subtree: true });
+
+  function unlockNext() {
+    console.log("UNLOCK_NEXT enviado");
+    try {
+      window.parent.postMessage({ type: 'UNLOCK_NEXT' }, '*');
+    } catch (e) {
+      console.log("Error enviando mensaje:", e);
+    }
+  }
+
+  function getAllContinueButtons() {
+    return Array.from(
+      document.querySelectorAll('button.continue-btn[data-continue-btn]')
+    );
+  }
+
+  function wireButtons() {
+    const buttons = getAllContinueButtons();
+
+    buttons.forEach(btn => {
+      if (btn.__wired) return;
+      btn.__wired = true;
+
+      btn.addEventListener('click', function () {
+
+        setTimeout(function () {
+
+          const allButtons = getAllContinueButtons();
+          const lastButton = allButtons[allButtons.length - 1];
+
+          if (btn === lastButton) {
+            unlockNext();
+          }
+
+        }, 300);
+
+      });
+
+    });
+  }
+
+  wireButtons();
+
+  const observer = new MutationObserver(function () {
+    wireButtons();
+  });
+
+  observer.observe(document.documentElement, {
+    childList: true,
+    subtree: true
+  });
+
 })();
 </script>
-
-
 
   </body>
 </html>
