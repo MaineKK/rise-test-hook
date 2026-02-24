@@ -137,66 +137,83 @@
  <!-- Hook para detectar el último Continuar/Finalizar de Rise y desbloquear Next en Storyline -->
 <script>
 (function () {
- // Enviamos al padre (Storyline) el desbloqueo
- function unlockNext() {
-   try { window.parent.postMessage({ type: 'UNLOCK_NEXT' }, '*'); } catch (e) {}
- }
+  function unlockNext() {
+    try { window.parent.postMessage({ type: 'UNLOCK_NEXT' }, '*'); } catch (e) {}
+  }
 
+  function isVisible(el) {
+    return !!(el && el.offsetParent !== null);
+  }
 
- // ¿Este botón es el último "Continuar" visible en la pantalla?
- function isLastVisibleContinue(btn) {
-   const visibles = Array.from(document.querySelectorAll('button.continue-btn[data-continue-btn]'))
-     .filter(b => b.offsetParent !== null);
-   return visibles.length > 0 && visibles[visibles.length - 1] === btn;
- }
+  function nearBottom(marginPx) {
+    var doc = document.documentElement;
+    var scrollTop = window.scrollY || doc.scrollTop || 0;
+    var viewBottom = scrollTop + window.innerHeight;
+    return viewBottom >= (doc.scrollHeight - (marginPx || 250));
+  }
 
+  function getVisibleContinues() {
+    return Array.from(document.querySelectorAll('button.continue-btn[data-continue-btn]'))
+      .filter(isVisible);
+  }
 
- // Handler de click
- function onContinueClick(e) {
-   const btn = e.currentTarget;
-   const label = (btn.textContent || '').trim().toLowerCase();
+  // El continue visible "más abajo" (posición real en pantalla)
+  function getBottomMostVisibleContinue() {
+    var visibles = getVisibleContinues();
+    if (!visibles.length) return null;
 
+    var best = visibles[0];
+    var bestY = -Infinity;
 
-   const looksFinal =
-     /finaliz/.test(label)           // “Finalizar”, “Finaliza”, etc.
-     || isLastVisibleContinue(btn);  // o es el último Continuar visible
+    for (var i = 0; i < visibles.length; i++) {
+      var b = visibles[i];
+      var rect = b.getBoundingClientRect();
+      var absY = rect.top + (window.scrollY || document.documentElement.scrollTop || 0);
+      if (absY > bestY) { bestY = absY; best = b; }
+    }
+    return best;
+  }
 
+  // Palabras típicas del último botón (ES/EN)
+  function looksLikeFinal(btn) {
+    var t = ((btn && btn.textContent) ? btn.textContent : '').trim().toLowerCase();
+    return /finaliz|termin|acabar|complet|finish|done/.test(t);
+  }
 
-   if (looksFinal) {
-     // Pequeño delay para que Rise haga su scroll/cambio de estado
-     setTimeout(unlockNext, 200);
-   }
- }
+  function onContinueClick(e) {
+    var clicked = e.currentTarget;
 
+    // Deja que Rise haga transiciones/render
+    setTimeout(function () {
+      // 1) Debe parecer "final" por texto
+      if (!looksLikeFinal(clicked)) return;
 
- // Cablear listeners a todos los botones de continuar que existan/entren
- function wireButtons(root = document) {
-   const candidates = root.querySelectorAll('button.continue-btn[data-continue-btn]');
-   candidates.forEach(btn => {
-     if (btn.__wired) return;
-     btn.__wired = true;
-     btn.addEventListener('click', onContinueClick);
-   });
- }
+      // 2) Debe ser el continue visible más abajo
+      var bottom = getBottomMostVisibleContinue();
+      if (!bottom || clicked !== bottom) return;
 
+      // 3) Debes estar cerca del final del scroll (lección larga => filtro fuerte)
+      if (!nearBottom(300)) return;
 
- // Inicial
- wireButtons();
+      unlockNext();
+    }, 400);
+  }
 
+  function wireButtons(root) {
+    root = root || document;
+    var candidates = root.querySelectorAll('button.continue-btn[data-continue-btn]');
+    candidates.forEach(function (btn) {
+      if (btn.__wired) return;
+      btn.__wired = true;
+      btn.addEventListener('click', onContinueClick);
+    });
+  }
 
- // Observar el DOM porque Rise es SPA y mete contenido dinámico
- const mo = new MutationObserver(muts => {
-   for (const m of muts) {
-     if (!m.addedNodes) continue;
-     m.addedNodes.forEach(n => {
-       if (n.nodeType !== 1) return;
-       // Cablea si aparecen botones nuevos o contenedores con ellos
-       if (n.matches?.('button.continue-btn[data-continue-btn]')) wireButtons(n);
-       else wireButtons(n);
-     });
-   }
- });
- mo.observe(document.documentElement, { childList: true, subtree: true });
+  wireButtons();
+
+  var mo = new MutationObserver(function () { wireButtons(); });
+  mo.observe(document.documentElement, { childList: true, subtree: true });
+
 })();
 </script>
     
